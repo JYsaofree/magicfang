@@ -1,11 +1,10 @@
 // easter-egg.js
-// 依赖：全局 supabase 客户端 (window.supabaseClient) 已初始化
-// 移动端使用原生 touch 事件，支持拖拽、双指缩放，关闭按钮正常
+// 依赖：window.supabaseClient
+// 移动端手势：单指拖拽，双指缩放，互不干扰
 
 (function() {
   function init() {
     if (!window.supabaseClient) {
-      console.warn('彩蛋功能：supabaseClient 未就绪，稍后重试');
       setTimeout(init, 500);
       return;
     }
@@ -77,16 +76,15 @@
         `translate(calc(-50% + ${imgState.x}px), calc(-50% + ${imgState.y}px)) scale(${imgState.scale})`;
     }
 
-    // 关闭图片弹窗时重置
     function closeImagePanel() {
       imgPanel.classList.remove('open');
       imgPanel.style.cssText = '';
       mask.classList.remove('active');
       resetImage();
+      clearTouchState();
       if (window.setEggLock) window.setEggLock(false);
     }
 
-    // 关闭所有弹窗
     function closeAll() {
       closeImagePanel();
       panel.classList.remove('open');
@@ -95,115 +93,130 @@
       eggSubmit.disabled = false;
     }
 
-    // ============= 触摸事件接管移动端（支持拖拽和缩放） =============
-    let touchCache = new Map();       // 存储当前触摸点
-    let dragStart = { x: 0, y: 0 };
+    // ============= 移动端手势处理 =============
+    let touchPoints = new Map();       // 触摸点 id -> {x, y}
+    let gestureType = null;            // 'drag' | 'pinch' | null
+    let dragStartState = { x: 0, y: 0 };
     let lastPinchDist = 0;
 
-    function onTouchStart(e) {
-      // 如果触摸的是关闭按钮，让按钮自己处理，这里不干预
-      if (e.target.closest('#eggImgClose')) return;
+    function clearTouchState() {
+      touchPoints.clear();
+      gestureType = null;
+      lastPinchDist = 0;
+    }
 
+    function getPinchCenter() {
+      const pts = [...touchPoints.values()];
+      return {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2
+      };
+    }
+
+    function onTouchStart(e) {
+      if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
+
+      // 更新当前触摸点
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        touchCache.set(t.identifier, { x: t.clientX, y: t.clientY });
+        touchPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
       }
 
-      if (touchCache.size === 1) {
-        // 单指拖拽：记录起始偏移
-        dragStart.x = imgState.x;
-        dragStart.y = imgState.y;
-      } else if (touchCache.size === 2) {
-        const pts = [...touchCache.values()];
+      if (touchPoints.size === 1) {
+        // 如果之前是双指缩放结束，单指按下时重置，避免拖拽继承
+        if (gestureType === 'pinch') {
+          clearTouchState();
+          // 重新记录当前单指
+          const [t] = [...touchPoints.values()];
+          touchPoints.set('single', { x: t.x, y: t.y });
+        }
+        // 开始拖拽
+        gestureType = 'drag';
+        dragStartState.x = imgState.x;
+        dragStartState.y = imgState.y;
+        // 记录拖拽基准点
+        const [first] = touchPoints.values();
+        touchPoints.set('dragBase', { x: first.x, y: first.y });
+      } else if (touchPoints.size === 2) {
+        // 无论之前是什么手势，立即切换到缩放模式
+        gestureType = 'pinch';
+        const pts = [...touchPoints.values()];
         lastPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        // 记录双指中点，后续缩放基于此点
-        const cx = (pts[0].x + pts[1].x) / 2;
-        const cy = (pts[0].y + pts[1].y) / 2;
-        touchCache.set('pinchCenter', { x: cx, y: cy });
-        // 记录缩放起始值
-        touchCache.set('pinchStartScale', imgState.scale);
-        touchCache.set('pinchStartX', imgState.x);
-        touchCache.set('pinchStartY', imgState.y);
+        // 记录缩放起始状态
+        touchPoints.set('pinchStart', {
+          scale: imgState.scale,
+          x: imgState.x,
+          y: imgState.y,
+          center: getPinchCenter()
+        });
       }
     }
 
     function onTouchMove(e) {
       if (!imgPanel.classList.contains('open')) return;
+      if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
 
-      // 更新触摸点
+      // 更新触摸点位置
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        if (touchCache.has(t.identifier)) {
-          touchCache.get(t.identifier).x = t.clientX;
-          touchCache.get(t.identifier).y = t.clientY;
+        if (touchPoints.has(t.identifier)) {
+          touchPoints.get(t.identifier).x = t.clientX;
+          touchPoints.get(t.identifier).y = t.clientY;
         }
       }
 
-      if (touchCache.size === 1) {
-        // 单指拖拽
-        const [pt] = touchCache.values();
-        // 需要一个基准点，首次移动时记录
-        if (!touchCache.has('dragBase')) {
-          touchCache.set('dragBase', { x: pt.x, y: pt.y });
-          return;
-        }
-        const base = touchCache.get('dragBase');
+      if (touchPoints.size === 1 && gestureType === 'drag') {
+        const base = touchPoints.get('dragBase');
+        if (!base) return;
+        const [pt] = [...touchPoints.values()];
         const deltaX = pt.x - base.x;
         const deltaY = pt.y - base.y;
-        imgState.x = dragStart.x + deltaX;
-        imgState.y = dragStart.y + deltaY;
+        imgState.x = dragStartState.x + deltaX;
+        imgState.y = dragStartState.y + deltaY;
         applyTransform();
-      } else if (touchCache.size === 2) {
-        // 双指缩放
-        const pts = [...touchCache.values()];
+      } else if (touchPoints.size === 2 && gestureType === 'pinch') {
+        const pts = [...touchPoints.values()];
         const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (lastPinchDist > 0) {
-          const scaleChange = dist / lastPinchDist;
-          const newScale = imgState.scale * scaleChange;
-          // 获取缩放中心（当前两指中点）
-          const cx = (pts[0].x + pts[1].x) / 2;
-          const cy = (pts[0].y + pts[1].y) / 2;
-          // 获取图片在页面中的位置（基于当前 transform）
-          const rect = prizeImg.getBoundingClientRect();
-          const imgCenterX = rect.left + rect.width / 2;
-          const imgCenterY = rect.top + rect.height / 2;
-          // 计算鼠标/触摸点相对于图片中心的偏移
-          const offsetX = cx - imgCenterX;
-          const offsetY = cy - imgCenterY;
-          // 调整平移使缩放中心保持不动
-          imgState.x += offsetX * (1 - scaleChange);
-          imgState.y += offsetY * (1 - scaleChange);
-          imgState.scale = newScale;
-          applyTransform();
+        if (lastPinchDist === 0) {
+          lastPinchDist = dist;
+          return;
         }
+        const scaleChange = dist / lastPinchDist;
+        const newScale = imgState.scale * scaleChange;
+        const center = getPinchCenter();
+        const rect = prizeImg.getBoundingClientRect();
+        const imgCenterX = rect.left + rect.width / 2;
+        const imgCenterY = rect.top + rect.height / 2;
+        const offsetX = center.x - imgCenterX;
+        const offsetY = center.y - imgCenterY;
+        imgState.x += offsetX * (1 - scaleChange);
+        imgState.y += offsetY * (1 - scaleChange);
+        imgState.scale = newScale;
+        applyTransform();
         lastPinchDist = dist;
       }
     }
 
     function onTouchEnd(e) {
       for (let i = 0; i < e.changedTouches.length; i++) {
-        touchCache.delete(e.changedTouches[i].identifier);
+        touchPoints.delete(e.changedTouches[i].identifier);
       }
-      if (touchCache.size < 2) {
-        lastPinchDist = 0;
-        touchCache.delete('pinchCenter');
-        touchCache.delete('pinchStartScale');
-        touchCache.delete('pinchStartX');
-        touchCache.delete('pinchStartY');
-      }
-      if (touchCache.size === 0) {
-        touchCache.delete('dragBase');
+
+      if (touchPoints.size === 0) {
+        clearTouchState();
+      } else if (touchPoints.size === 1 && gestureType === 'pinch') {
+        // 从双指变为单指，维持缩放状态，但不自动开始拖拽
+        gestureType = null; // 禁止继续操作，必须手指完全抬起再按
       }
     }
 
-    // 桌面端鼠标滚轮缩放
+    // 桌面端滚轮缩放
     function onWheel(e) {
       if (!imgPanel.classList.contains('open')) return;
       if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
-
       const delta = -Math.sign(e.deltaY) * 0.1;
       const newScale = imgState.scale * (1 + delta);
       const rect = prizeImg.getBoundingClientRect();
@@ -219,33 +232,25 @@
       applyTransform();
     }
 
-    // 绑定触摸事件到图片弹窗
+    // 绑定事件
     imgPanel.addEventListener('touchstart', onTouchStart, { passive: false });
     imgPanel.addEventListener('touchmove', onTouchMove, { passive: false });
     imgPanel.addEventListener('touchend', onTouchEnd);
     imgPanel.addEventListener('touchcancel', onTouchEnd);
-    // 桌面端滚轮
     imgPanel.addEventListener('wheel', onWheel, { passive: false });
 
-    // 打开图片弹窗时重置变换
-    function openImagePanel() {
-      resetImage();
-      // 如果之前有触摸缓存，清空
-      touchCache.clear();
-      lastPinchDist = 0;
-    }
-
-    // 监听 open 类添加
+    // 打开图片时重置
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((m) => {
         if (m.target === imgPanel && imgPanel.classList.contains('open')) {
-          openImagePanel();
+          resetImage();
+          clearTouchState();
         }
       });
     });
     observer.observe(imgPanel, { attributes: true, attributeFilter: ['class'] });
 
-    // ---------- 按钮事件 ----------
+    // ---------- 按钮逻辑 ----------
     const openPanel = () => {
       if (panel.classList.contains('open')) return;
       if (window.setEggLock) window.setEggLock(true);
@@ -264,7 +269,6 @@
     mask.addEventListener('click', closeAll);
     mask.addEventListener('touchend', (e) => { e.preventDefault(); closeAll(); });
 
-    // 图片关闭按钮专用监听（同时阻止冒泡）
     function onImgClose(e) {
       e.stopPropagation();
       e.preventDefault();
@@ -273,7 +277,7 @@
     eggImgClose.addEventListener('click', onImgClose);
     eggImgClose.addEventListener('touchend', onImgClose);
 
-    // ---------- 兑换逻辑 ----------
+    // ---------- 兑换 ----------
     const handleSubmit = async () => {
       const code = eggInput.value.trim();
       if (!code) { eggError.textContent = '请输入彩蛋码'; return; }
@@ -289,10 +293,7 @@
 
         const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
         const imageUrl = `${supabaseUrl}/storage/v1/object/public/caise-eggs/${imagePath}`;
-        console.log('✅ 验证通过，图片路径:', imagePath);
-        console.log('🖼️ 完整图片 URL:', imageUrl);
 
-        // 设置全屏样式
         imgPanel.style.cssText = `
           position: fixed; inset: 0; width: 100vw; height: 100vh;
           background: rgba(0,0,0,0.95); z-index: 9999;
@@ -313,7 +314,7 @@
           prizeImg.src = blobUrl;
           prizeImg.onload = () => {
             URL.revokeObjectURL(blobUrl);
-            resetImage(); // 再次确保居中
+            resetImage();
           };
         } catch (fetchErr) {
           console.error('图片 fetch 失败:', fetchErr);

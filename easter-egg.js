@@ -1,6 +1,6 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 使用 pointer 事件统一桌面和移动端，支持拖拽、缩放
+// 优化缩放范围与双指→单指防误触
 
 (function() {
   function init() {
@@ -69,7 +69,8 @@
     }
 
     function applyTransform() {
-      const min = 0.5, max = 5;
+      // 合理的缩放范围：0.5 ~ 3
+      const min = 0.5, max = 3;
       imgState.scale = Math.min(max, Math.max(min, imgState.scale));
       prizeImg.style.transform =
         `translate(calc(-50% + ${imgState.x}px), calc(-50% + ${imgState.y}px)) scale(${imgState.scale})`;
@@ -96,11 +97,14 @@
     let pointers = new Map();       // pointerId -> {clientX, clientY}
     let dragStart = null;          // 拖拽起始 {x, y, imgX, imgY}
     let pinchStart = null;         // 缩放起始 {dist, scale, x, y, center}
+    let dragPending = false;       // 双指变单指后等待移动超过阈值
+    let dragPendingStart = { x: 0, y: 0 };
 
     function clearGestureState() {
       pointers.clear();
       dragStart = null;
       pinchStart = null;
+      dragPending = false;
     }
 
     function getPointerCenter() {
@@ -129,8 +133,9 @@
           imgY: imgState.y
         };
         pinchStart = null;
+        dragPending = false; // 新拖拽开始，取消等待
       } else if (count === 2) {
-        // 开始双指缩放
+        // 开始双指缩放，强制取消拖拽
         const pts = [...pointers.values()];
         const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         pinchStart = {
@@ -141,6 +146,7 @@
           center: getPointerCenter()
         };
         dragStart = null;
+        dragPending = false;
       }
     }
 
@@ -155,15 +161,32 @@
       const count = pointers.size;
 
       if (count === 1 && dragStart) {
-        // 拖拽中
         const [pt] = pointers.values();
+
+        if (dragPending) {
+          // 刚刚从双指变单指，等待手指移动超过阈值
+          const dx = pt.clientX - dragPendingStart.x;
+          const dy = pt.clientY - dragPendingStart.y;
+          if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return; // 忽略微小移动
+
+          // 移动超过阈值，正式开始拖拽
+          dragPending = false;
+          dragStart = {
+            x: dragPendingStart.x,
+            y: dragPendingStart.y,
+            imgX: imgState.x,
+            imgY: imgState.y
+          };
+        }
+
+        // 正常拖拽
         const deltaX = pt.clientX - dragStart.x;
         const deltaY = pt.clientY - dragStart.y;
         imgState.x = dragStart.imgX + deltaX;
         imgState.y = dragStart.imgY + deltaY;
         applyTransform();
       } else if (count === 2 && pinchStart) {
-        // 缩放中
+        // 双指缩放
         const pts = [...pointers.values()];
         const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         if (pinchStart.dist === 0) return;
@@ -191,17 +214,14 @@
       if (count === 0) {
         clearGestureState();
       } else if (count === 1 && pinchStart) {
-        // 从双指变为单指：将剩余指针作为新的拖拽起点
+        // 从双指变为单指：激活拖拽等待状态
         const [pt] = pointers.values();
-        dragStart = {
-          x: pt.clientX,
-          y: pt.clientY,
-          imgX: imgState.x,
-          imgY: imgState.y
-        };
+        dragStart = { x: pt.clientX, y: pt.clientY, imgX: imgState.x, imgY: imgState.y };
+        dragPending = true;
+        dragPendingStart = { x: pt.clientX, y: pt.clientY };
         pinchStart = null;
       }
-      // 如果 count === 1 且之前就是拖拽，继续保持 dragStart（已更新坐标）
+      // 其他情况（count === 1 且原本就是拖拽）无需处理
     }
 
     // 滚轮缩放（桌面端）
@@ -230,7 +250,7 @@
     imgPanel.addEventListener('pointermove', onPointerMove);
     imgPanel.addEventListener('pointerup', onPointerUp);
     imgPanel.addEventListener('pointercancel', onPointerUp);
-    imgPanel.addEventListener('pointerleave', onPointerUp); // 确保离开时清理
+    imgPanel.addEventListener('pointerleave', onPointerUp);
     imgPanel.addEventListener('wheel', onWheel, { passive: false });
 
     // 打开图片弹窗时重置状态

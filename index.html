@@ -177,7 +177,8 @@
         const SUPABASE_URL = 'https://zebyboiepollbowhidui.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplYnlib2llcG9sbGJvd2hpZHVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjg5NDgsImV4cCI6MjA5NDkwNDk0OH0.ASKBKur6fheLUdSukFv_LfqhRRClZY8Dz3J_2sGRUMA';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+        window.supabaseClient = supabase;
+        
         // --- Solver ---
         const solverBadge = document.getElementById('solverBadge');
         const manualLoadBtn = document.getElementById('manualLoadBtn');

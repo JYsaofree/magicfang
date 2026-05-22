@@ -133,7 +133,7 @@
 
         // 直接使用公开链接（Storage 桶已设为 public）
         const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
-        const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/${imagePath}`;
+        const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/public/${imagePath}`;
         console.log('✅ 验证通过，图片路径:', imagePath);
         console.log('🖼️ 完整图片 URL:', imageUrl);
 

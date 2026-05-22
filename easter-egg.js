@@ -1,12 +1,12 @@
 // easter-egg.js
-// 依赖：全局 supabase 客户端 (window.supabase) 已初始化
+// 依赖：全局 supabase 客户端 (window.supabaseClient) 已初始化
 
 (function() {
   // 等待页面加载完成
   function init() {
-    // 检查 supabase 是否可用
+    // 检查 supabaseClient 是否可用
     if (!window.supabaseClient) {
-      console.warn('彩蛋功能：supabase 未就绪，稍后重试');
+      console.warn('彩蛋功能：supabaseClient 未就绪，稍后重试');
       setTimeout(init, 500);
       return;
     }
@@ -70,7 +70,6 @@
 
     // 打开输入窗口
     trigger.addEventListener('click', () => {
-      // 防止和魔方操作冲突
       if (panel.classList.contains('open')) return;
       // 锁定魔方操作
       if (window.setEggLock) window.setEggLock(true);
@@ -81,9 +80,8 @@
       setTimeout(() => eggInput.focus(), 100);
     });
 
-    // 关闭所有弹窗
+    // 关闭所有弹窗（同时解锁魔方）
     function closeAll() {
-      // 解锁魔方操作
       if (window.setEggLock) window.setEggLock(false);
       mask.classList.remove('active');
       panel.classList.remove('open');
@@ -95,10 +93,11 @@
 
     eggClose.addEventListener('click', closeAll);
     mask.addEventListener('click', closeAll);
+
+    // 图片关闭按钮（只关闭图片弹窗，同样解锁魔方）
     eggImgClose.addEventListener('click', () => {
       imgPanel.classList.remove('open');
       mask.classList.remove('active');
-      // 解锁魔方
       if (window.setEggLock) window.setEggLock(false);
     });
 
@@ -113,40 +112,66 @@
       eggSubmit.disabled = true;
       eggError.textContent = '验证中…';
 
-        try {
-            const { data: imagePath, error } = await window.supabaseClient.rpc(
-                'verify_easter_egg',
-                { code_text: code }
-            );
+      try {
+        const { data: imagePath, error } = await window.supabaseClient.rpc(
+          'verify_easter_egg',
+          { code_text: code }
+        );
 
-            if (error) {
-                console.error('验证错误:', error);
-                eggError.textContent = '网络错误，请重试';
-                eggSubmit.disabled = false;
-                return;
-            }
-
-            if (!imagePath) {
-                eggError.textContent = '填写错误喵';
-                eggSubmit.disabled = false;
-                return;
-            }
-
-            // 直接使用公开链接（Storage 桶已设为 public）
-            const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
-            const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/${imagePath}`;
-            console.log('✅ 验证通过，图片路径:', imagePath);
-            console.log('🖼️ 完整图片 URL:', imageUrl);
-            prizeImg.crossOrigin = "anonymous";  // 添加这一行
-            prizeImg.src = imageUrl;
-            panel.classList.remove('open');
-            imgPanel.classList.add('open');
-            eggSubmit.disabled = false;
-        } catch (err) {
-            console.error('未知错误:', err);
-            eggError.textContent = '出了点问题，请刷新';
-            eggSubmit.disabled = false;
+        if (error) {
+          console.error('验证错误:', error);
+          eggError.textContent = '网络错误，请重试';
+          eggSubmit.disabled = false;
+          return;
         }
+
+        if (!imagePath) {
+          eggError.textContent = '填写错误喵';
+          eggSubmit.disabled = false;
+          return;
+        }
+
+        // 直接使用公开链接（Storage 桶已设为 public）
+        const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
+        const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/${imagePath}`;
+        console.log('✅ 验证通过，图片路径:', imagePath);
+        console.log('🖼️ 完整图片 URL:', imageUrl);
+
+        // 强制图片弹窗全屏并置于顶层
+        imgPanel.style.cssText = `
+          position: fixed; inset: 0; width: 100vw; height: 100vh;
+          background: rgba(0,0,0,0.95); z-index: 9999;
+          display: flex; align-items: center; justify-content: center;
+          transform: scale(1); margin: 0; padding: 0; border-radius: 0;
+        `;
+        prizeImg.style.cssText = `
+          max-width: 95vw; max-height: 95vh; object-fit: contain;
+          display: block; border: none;
+        `;
+
+        // 使用 fetch 转 blob 加载（彻底解决任何安全策略问题）
+        try {
+          const response = await fetch(imageUrl);
+          if (!response.ok) throw new Error('图片加载失败');
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          prizeImg.src = blobUrl;
+          prizeImg.onload = () => URL.revokeObjectURL(blobUrl); // 释放内存
+        } catch (fetchErr) {
+          console.error('图片 fetch 失败:', fetchErr);
+          eggError.textContent = '图片加载异常，请稍后重试';
+          eggSubmit.disabled = false;
+          return;
+        }
+
+        panel.classList.remove('open');
+        imgPanel.classList.add('open');
+        eggSubmit.disabled = false;
+      } catch (err) {
+        console.error('未知错误:', err);
+        eggError.textContent = '出了点问题，请刷新';
+        eggSubmit.disabled = false;
+      }
     });
 
     // 回车键提交

@@ -144,7 +144,7 @@
   text-align: center;
 }
 
-/* ---------- 图片展示弹窗 - 强制全屏，支持拖拽缩放 ---------- */
+/* ---------- 图片展示弹窗 - 强制全屏 ---------- */
 #eggImagePanel {
   position: fixed !important;
   inset: 0 !important;
@@ -163,28 +163,27 @@
   padding: 0 !important;
   border-radius: 0 !important;
   overflow: hidden;
-  touch-action: none; /* 禁止浏览器默认手势，由 JS 接管 */
+  /* 父级 touch-action 设为 none，但关闭按钮需要单独启用 */
+  touch-action: none;
 }
 #eggImagePanel.open {
   transform: scale(1);
 }
 
-/* 图片本身：绝对定位，初始居中，通过 transform 移动和缩放 */
+/* 图片本身：绝对定位，初始居中 */
 #eggPrizeImg {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center center;
-  max-width: none;   /* 移除限制，由缩放控制大小 */
-  max-height: none;
   will-change: transform;
-  pointer-events: none; /* 让事件穿透到父容器，方便拖拽识别 */
+  pointer-events: none;      /* 事件穿透到父容器 */
   user-select: none;
   -webkit-user-drag: none;
 }
 
-/* 图片弹窗的关闭按钮（固定在屏幕右上角，不受图片变换影响） */
+/* 图片弹窗的关闭按钮（固定在屏幕右上角，覆盖父级 touch-action） */
 #eggImagePanel .egg-close {
   position: fixed;
   top: 20px;
@@ -203,7 +202,9 @@
   justify-content: center;
   cursor: pointer;
   border: 1px solid rgba(255,255,255,0.3);
-  touch-action: manipulation;
+  /* 关键：关闭按钮必须允许点击 */
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
 }
 
 /* 手机端微调 */

@@ -1,6 +1,6 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 移动端手势：单指拖拽，双指缩放，互不干扰
+// 手势状态机：idle -> drag (单指) / pinch (双指) ，切换时严格互斥
 
 (function() {
   function init() {
@@ -81,7 +81,7 @@
       imgPanel.style.cssText = '';
       mask.classList.remove('active');
       resetImage();
-      clearTouchState();
+      resetGestureState();
       if (window.setEggLock) window.setEggLock(false);
     }
 
@@ -93,20 +93,20 @@
       eggSubmit.disabled = false;
     }
 
-    // ============= 移动端手势处理 =============
-    let touchPoints = new Map();       // 触摸点 id -> {x, y}
-    let gestureType = null;            // 'drag' | 'pinch' | null
-    let dragStartState = { x: 0, y: 0 };
+    // ============= 手势状态机 =============
+    let gestureState = 'idle';   // 'idle' | 'drag' | 'pinch'
+    let touchCache = new Map();  // identifier -> {x, y}
+    let dragStart = { x: 0, y: 0 };
     let lastPinchDist = 0;
 
-    function clearTouchState() {
-      touchPoints.clear();
-      gestureType = null;
+    function resetGestureState() {
+      gestureState = 'idle';
+      touchCache.clear();
       lastPinchDist = 0;
     }
 
     function getPinchCenter() {
-      const pts = [...touchPoints.values()];
+      const pts = [...touchCache.values()];
       return {
         x: (pts[0].x + pts[1].x) / 2,
         y: (pts[0].y + pts[1].y) / 2
@@ -114,37 +114,32 @@
     }
 
     function onTouchStart(e) {
+      // 如果触摸的是关闭按钮，不处理手势
       if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
 
-      // 更新当前触摸点
+      // 更新触摸点集
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        touchPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+        touchCache.set(t.identifier, { x: t.clientX, y: t.clientY });
       }
 
-      if (touchPoints.size === 1) {
-        // 如果之前是双指缩放结束，单指按下时重置，避免拖拽继承
-        if (gestureType === 'pinch') {
-          clearTouchState();
-          // 重新记录当前单指
-          const [t] = [...touchPoints.values()];
-          touchPoints.set('single', { x: t.x, y: t.y });
-        }
+      const count = touchCache.size;
+
+      if (count === 1 && gestureState === 'idle') {
         // 开始拖拽
-        gestureType = 'drag';
-        dragStartState.x = imgState.x;
-        dragStartState.y = imgState.y;
-        // 记录拖拽基准点
-        const [first] = touchPoints.values();
-        touchPoints.set('dragBase', { x: first.x, y: first.y });
-      } else if (touchPoints.size === 2) {
-        // 无论之前是什么手势，立即切换到缩放模式
-        gestureType = 'pinch';
-        const pts = [...touchPoints.values()];
+        gestureState = 'drag';
+        dragStart.x = imgState.x;
+        dragStart.y = imgState.y;
+        const [first] = touchCache.values();
+        touchCache.set('dragBase', { x: first.x, y: first.y });
+      } else if (count === 2) {
+        // 进入缩放模式，无论之前是什么状态，立即切换
+        gestureState = 'pinch';
+        const pts = [...touchCache.values()];
         lastPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        // 记录缩放起始状态
-        touchPoints.set('pinchStart', {
+        // 记录缩放起始状态用于计算偏移
+        touchCache.set('pinchStart', {
           scale: imgState.scale,
           x: imgState.x,
           y: imgState.y,
@@ -161,23 +156,23 @@
       // 更新触摸点位置
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        if (touchPoints.has(t.identifier)) {
-          touchPoints.get(t.identifier).x = t.clientX;
-          touchPoints.get(t.identifier).y = t.clientY;
+        if (touchCache.has(t.identifier)) {
+          touchCache.get(t.identifier).x = t.clientX;
+          touchCache.get(t.identifier).y = t.clientY;
         }
       }
 
-      if (touchPoints.size === 1 && gestureType === 'drag') {
-        const base = touchPoints.get('dragBase');
+      if (gestureState === 'drag' && touchCache.size === 1) {
+        const base = touchCache.get('dragBase');
         if (!base) return;
-        const [pt] = [...touchPoints.values()];
+        const [pt] = [...touchCache.values()];
         const deltaX = pt.x - base.x;
         const deltaY = pt.y - base.y;
-        imgState.x = dragStartState.x + deltaX;
-        imgState.y = dragStartState.y + deltaY;
+        imgState.x = dragStart.x + deltaX;
+        imgState.y = dragStart.y + deltaY;
         applyTransform();
-      } else if (touchPoints.size === 2 && gestureType === 'pinch') {
-        const pts = [...touchPoints.values()];
+      } else if (gestureState === 'pinch' && touchCache.size === 2) {
+        const pts = [...touchCache.values()];
         const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         if (lastPinchDist === 0) {
           lastPinchDist = dist;
@@ -200,15 +195,24 @@
     }
 
     function onTouchEnd(e) {
+      // 移除已抬起的触点
       for (let i = 0; i < e.changedTouches.length; i++) {
-        touchPoints.delete(e.changedTouches[i].identifier);
+        touchCache.delete(e.changedTouches[i].identifier);
       }
 
-      if (touchPoints.size === 0) {
-        clearTouchState();
-      } else if (touchPoints.size === 1 && gestureType === 'pinch') {
-        // 从双指变为单指，维持缩放状态，但不自动开始拖拽
-        gestureType = null; // 禁止继续操作，必须手指完全抬起再按
+      const count = touchCache.size;
+
+      if (count === 0) {
+        // 所有手指抬起，重置状态
+        resetGestureState();
+      } else if (count === 1 && gestureState === 'pinch') {
+        // 从双指变为单指，手势结束，进入 idle 防止误拖拽
+        gestureState = 'idle';
+        // 保留单指触摸信息，但不会触发任何操作
+      } else if (count === 1 && gestureState === 'drag') {
+        // 拖拽过程中抬起其他手指？实际只有一个手指，抬起后应为 idle
+        // 但如果还有一根手指在屏幕上（可能是另一只手），为了安全也切到 idle
+        gestureState = 'idle';
       }
     }
 
@@ -232,25 +236,25 @@
       applyTransform();
     }
 
-    // 绑定事件
+    // 绑定触摸事件
     imgPanel.addEventListener('touchstart', onTouchStart, { passive: false });
     imgPanel.addEventListener('touchmove', onTouchMove, { passive: false });
     imgPanel.addEventListener('touchend', onTouchEnd);
     imgPanel.addEventListener('touchcancel', onTouchEnd);
     imgPanel.addEventListener('wheel', onWheel, { passive: false });
 
-    // 打开图片时重置
+    // 打开图片弹窗时重置状态
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((m) => {
         if (m.target === imgPanel && imgPanel.classList.contains('open')) {
           resetImage();
-          clearTouchState();
+          resetGestureState();
         }
       });
     });
     observer.observe(imgPanel, { attributes: true, attributeFilter: ['class'] });
 
-    // ---------- 按钮逻辑 ----------
+    // ---------- UI 事件 ----------
     const openPanel = () => {
       if (panel.classList.contains('open')) return;
       if (window.setEggLock) window.setEggLock(true);

@@ -1,0 +1,200 @@
+/* ============================================
+   彩蛋模块样式 (easter-egg.css)
+   ============================================ */
+
+/* 彩蛋按钮，放在评论按钮下方 */
+#easterEggTrigger {
+  position: fixed;
+  top: 102px;               /* 评论按钮 top:58px + 40px + 间距 */
+  right: 12px;
+  z-index: 19;              /* 和评论按钮一致 */
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background: rgba(12,12,30,0.8);
+  color: #ffd700;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.15);
+  transition: transform 0.2s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+#easterEggTrigger:active {
+  transform: scale(0.85);
+}
+
+/* 遮罩层 */
+#eggMask {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  background: rgba(0,0,0,0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+#eggMask.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 弹窗通用样式 */
+.egg-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  z-index: 30;
+  background: #1e1e2e;
+  border-radius: 22px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-sizing: border-box;
+  color: #fff;
+}
+.egg-dialog.open {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* 输入弹窗 */
+#eggPanel {
+  width: 320px;
+  max-width: 90vw;
+  padding: 24px 20px 20px;
+}
+
+/* 关闭按钮 */
+.egg-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 22px;
+  cursor: pointer;
+  color: #aaa;
+  background: none;
+  border: none;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.egg-close:hover {
+  color: #fff;
+}
+
+/* 标题 */
+.egg-title {
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* 输入框 */
+#eggInput {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #444;
+  background: #2a2a3c;
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+}
+#eggInput::placeholder {
+  color: #888;
+}
+
+/* 提交按钮 */
+#eggSubmit {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: #4ecdc4;
+  color: #0a0a1a;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#eggSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 错误提示 */
+#eggError {
+  margin-top: 10px;
+  color: #f7934c;
+  font-size: 14px;
+  min-height: 20px;
+  text-align: center;
+}
+
+/* ---------- 图片展示弹窗 - 强制全屏 ---------- */
+#eggImagePanel {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: scale(0);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+}
+#eggImagePanel.open {
+  transform: scale(1);
+}
+#eggImagePanel img {
+  max-width: 95vw;
+  max-height: 95vh;
+  object-fit: contain;
+  display: block;
+}
+
+/* 图片弹窗的关闭按钮（固定在屏幕右上角） */
+#eggImagePanel .egg-close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+/* 手机端微调 */
+@media (max-width: 600px) {
+  #easterEggTrigger {
+    top: 88px;  /* 评论按钮 top:44px + 36px + 间距 */
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+}

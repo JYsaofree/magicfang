@@ -139,30 +139,25 @@
   text-align: center;
 }
 
-/* ---------- 图片展示弹窗 - 全屏覆盖 ---------- */
+/* ---------- 图片展示弹窗 - 强制全屏 ---------- */
 #eggImagePanel {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  max-width: none;
-  max-height: none;
-  background: rgba(0, 0, 0, 0.95); /* 半透明黑底 */
-  overflow: hidden;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: scale(0);          /* 初始隐藏，由 .open 控制 */
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: scale(0);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border-radius: 0;            /* 取消圆角，全屏不需要 */
-}
-/* 覆盖 .egg-dialog 可能带来的样式冲突 */
-#eggImagePanel.egg-dialog {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
 }
 #eggImagePanel.open {
   transform: scale(1);
@@ -179,19 +174,19 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 32;
-  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  background: rgba(0,0,0,0.7);
   backdrop-filter: blur(4px);
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 20px;
   cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
 }
 
 /* 手机端微调 */

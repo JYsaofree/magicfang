@@ -114,7 +114,7 @@
       eggError.textContent = '验证中…';
 
         try {
-            const { data: imagePath, error } = await window.supabase.rpc(
+            const { data: imagePath, error } = await window.supabaseClient.rpc(
                 'verify_easter_egg',
                 { code_text: code }
             );

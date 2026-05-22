@@ -400,7 +400,18 @@
         }
 
         let busy=false, dragInfo=null, pendingDrag=false, dragStartData=null;
-        let history=[], manualCount=0;
+        // 彩蛋模块专用锁
+            window._eggLocked = false;
+            window.setEggLock = function(locked) {
+            window._eggLocked = locked;
+            if (locked) {
+                btnSolve.disabled = true;
+                btnScramble.disabled = true;
+            } else {
+            updateButtonStates();
+                }
+            };
+        let history=[], manualCount=0; 
         const moveCountEl=document.getElementById('moveCount');
         const solveCountEl=document.getElementById('solveCount');
         const btnSolve=document.getElementById('btnSolve');
@@ -591,6 +602,7 @@
         let needsSnap = false;
 
         function startDrag(e){
+            if(window._eggLocked) return false;
             if(busy||dragInfo||commentState!=='closed')return false;
             snapAnimating = false;
             const rect=renderer.domElement.getBoundingClientRect();
@@ -687,6 +699,7 @@
         canvas.addEventListener('contextmenu',e=>e.preventDefault());
         canvas.addEventListener('pointerdown',e=>{
             if(commentState!=='closed')return;
+            if(window._eggLocked) return;
             if(e.target.closest('#actionBar,#solverPanel,#ui,#commentTrigger,#commentPanel,#commentMask'))return;
             snapAnimating = false;
             activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY,type:e.pointerType});
@@ -757,12 +770,14 @@
 
         canvas.addEventListener('wheel',e=>{
             if(commentState!=='closed')return;
+            if(window._eggLocked) return;
             sphericalRadius = clampRadius(sphericalRadius + e.deltaY * 0.01);
             updateCamera();
         },{passive:false});
 
         window.addEventListener('keydown',e=>{
             if(commentState!=='closed')return;
+            if(window._eggLocked) return;
             if(e.code==='Space'){e.preventDefault();recover();}
             else if(e.code==='KeyD'){e.preventDefault();scramble();}
         });

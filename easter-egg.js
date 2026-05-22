@@ -5,7 +5,7 @@
   // 等待页面加载完成
   function init() {
     // 检查 supabase 是否可用
-    if (!window.supabase) {
+    if (!window.supabaseClient) {
       console.warn('彩蛋功能：supabase 未就绪，稍后重试');
       setTimeout(init, 500);
       return;

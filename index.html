@@ -105,7 +105,6 @@
     #commentInputArea { max-height: 0; opacity: 0; overflow: hidden; transition: 0.28s; }
     #commentInputArea.expanded { max-height: 160px; opacity: 1; margin-bottom: 10px; }
     #commentInputArea input, #commentInputArea textarea { width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 10px; margin-bottom: 6px; font-family: inherit; }
-    /* 底部提示美化 */
     #actionHint {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.65);
@@ -117,6 +116,16 @@
       border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.06);
       white-space: nowrap;
+    }
+    /* 手机端优化 */
+    @media (max-width: 600px) {
+      :root { --btn-height: 44px; }
+      .card { padding: 6px 10px; border-radius: 11px; gap: 4px; }
+      .card .label { font-size: 9px; }
+      .card .value { font-size: 16px; }
+      .solver-card .value { font-size: 11px; }
+      .action-btn { font-size: 13px; min-width: 100px; padding: 0 18px; }
+      #actionHint { font-size: 10px; padding: 5px 12px; }
     }
   </style>
 </head>
@@ -161,6 +170,12 @@
 
   <script type="module">
     import * as THREE from 'three';
+
+    // --- 设备适配参数 (优化电脑拖拽手感与方向) ---
+    const isFinePointer = window.matchMedia('(pointer: fine)').matches;
+    const dragStartThreshold = isFinePointer ? 5 : 7;   // 开始拖拽像素距离
+    const dragProjThreshold = isFinePointer ? 5 : 8;     // 层选择投影阈值
+    const dragSensitivity = isFinePointer ? 0.022 : 0.014; // 旋转灵敏度
 
     // --- Supabase ---
     const SUPABASE_URL = 'https://zebyboiepollbowhidui.supabase.co';
@@ -285,7 +300,14 @@
     scene.background = new THREE.Color('#0b0b1a');
     const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
     camera.position.set(5.5,4.2,7.2); camera.lookAt(0,0,0);
-    let sphericalRadius = 8.5; /* 初始距离更远 */
+
+    function getResponsiveRadius() {
+      const w = innerWidth;
+      if (w < 380) return 10.5;
+      if (w < 600) return 9.5;
+      return 8.5;
+    }
+    let sphericalRadius = getResponsiveRadius();
 
     function updateCamera(){
       const p=new THREE.Vector3().setFromSphericalCoords(sphericalRadius, Math.PI/3, Math.PI/4);
@@ -349,7 +371,6 @@
     function detachLayer(cubies){
       cubies.forEach(c=>{cubieGroup.attach(c); c.position.round();});
       pivotGroup.rotation.set(0,0,0);
-      // 如果之前有待处理的吸附，现在执行
       if(pendingSnap){
         pendingSnap = false;
         snapToNearestFace();
@@ -501,7 +522,7 @@
     btnScramble.onclick=()=>{if(!busy&&commentState==='closed')scramble();};
     updateButtonStates();
 
-    // --- 吸附逻辑 (支持打乱/复原中延迟执行) ---
+    // --- 吸附逻辑 ---
     let snapAnimating = false;
     let pendingSnap = false;
     const faceNormals = {
@@ -515,7 +536,6 @@
 
     function snapToNearestFace() {
       if (snapAnimating || commentState !== 'closed') return;
-      // 如果正在转动层，延迟吸附到转动结束
       if (pivotGroup.children.length > 0) {
         pendingSnap = true;
         return;
@@ -560,7 +580,7 @@
       requestAnimationFrame(step);
     }
 
-    // --- 交互 (优化层选择：利用面法线排除当前面) ---
+    // --- 交互 (方向修正 + 桌面灵敏度提升) ---
     const raycaster=new THREE.Raycaster();
     const activePointers=new Map();
     let isRightDragging=false, prevPointer={x:0,y:0,dist:0};
@@ -576,7 +596,6 @@
       if(!hits.length||!hits[0].face)return false;
       const cubie=hits[0].object;
       const pos=getLogicalPos(cubie);
-      // 计算局部面法线
       const worldNormal = hits[0].face.normal.clone();
       cubie.updateWorldMatrix(true, false);
       const worldQuat = new THREE.Quaternion(); cubie.getWorldQuaternion(worldQuat);
@@ -587,7 +606,6 @@
 
     function selectLayerFromDrag(dx,dy){
       const {pos, localNormal} = dragStartData;
-      // 根据法线排除最不可能的轴
       const absN = [Math.abs(localNormal.x), Math.abs(localNormal.y), Math.abs(localNormal.z)];
       const maxIdx = absN.indexOf(Math.max(...absN));
       const excludeAxis = ['x','y','z'][maxIdx];
@@ -610,15 +628,17 @@
         const proj=Math.abs(delta.dot(perp));
         if(proj>bestProj){bestProj=proj; best={...cand,perp};}
       }
-      if(!best||bestProj<8)return null;
+      if(!best||bestProj<dragProjThreshold)return null;
       const cubies=attachLayer(best.axis,best.value);
-      return {axis:best.axis,value:best.value,cubies,perp:best.perp,startX:dragStartData.x,startY:dragStartData.y,angle:0};
+      // 修正Y轴方向：水平滑动时顶层旋转方向应与直觉一致
+      const sign = (best.axis === 'y') ? -1 : 1;
+      return {axis:best.axis,value:best.value,cubies,perp:best.perp,startX:dragStartData.x,startY:dragStartData.y,angle:0,sign};
     }
 
     function updateDrag(e){
       if(!dragInfo)return;
       const dx=e.clientX-dragInfo.startX, dy=e.clientY-dragInfo.startY;
-      dragInfo.angle=(dx*dragInfo.perp.x+dy*dragInfo.perp.y)*0.014;
+      dragInfo.angle=(dx*dragInfo.perp.x+dy*dragInfo.perp.y)*dragInfo.sign*dragSensitivity;
       const a=dragInfo.axis;
       pivotGroup.rotation.set(a==='x'?dragInfo.angle:0, a==='y'?dragInfo.angle:0, a==='z'?dragInfo.angle:0);
     }
@@ -664,7 +684,7 @@
       activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY,type:e.pointerType});
       if(pendingDrag&&!dragInfo&&activePointers.size===1&&commentState==='closed'){
         const dx=e.clientX-dragStartData.x, dy=e.clientY-dragStartData.y;
-        if(Math.hypot(dx,dy)>7){
+        if(Math.hypot(dx,dy)>dragStartThreshold){
           pendingDrag=false;
           const layerInfo=selectLayerFromDrag(dx,dy);
           if(layerInfo){dragInfo=layerInfo;canvas.style.cursor='grabbing';}else{dragStartData=null;}
@@ -723,11 +743,17 @@
       if(e.code==='Space'){e.preventDefault();recover();}
       else if(e.code==='KeyD'){e.preventDefault();scramble();}
     });
-    window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+    window.addEventListener('resize',()=>{
+      camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth,innerHeight);
+      const newRadius = getResponsiveRadius();
+      if (sphericalRadius < 4 || sphericalRadius > 14) sphericalRadius = newRadius;
+      updateCamera();
+    });
 
     function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
-    animate();
     updateCamera();
+    animate();
   </script>
 </body>
 </html>

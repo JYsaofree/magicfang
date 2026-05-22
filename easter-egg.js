@@ -149,19 +149,24 @@
           display: block; border: none;
         `;
 
-        // 使用 fetch 转 blob 加载（彻底解决任何安全策略问题）
+        // 使用 fetch 转 blob 加载（已增强错误日志）
         try {
-          const response = await fetch(imageUrl);
-          if (!response.ok) throw new Error('图片加载失败');
-          const blob = await response.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          prizeImg.src = blobUrl;
-          prizeImg.onload = () => URL.revokeObjectURL(blobUrl); // 释放内存
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            // 重点：读取服务器返回的正文并打印，这样就知道 400 的具体原因了
+            const errText = await response.text();
+            console.error('❌ Supabase 错误详情：', response.status, errText);
+            throw new Error(`服务器返回 ${response.status}: ${errText}`);
+        }
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            prizeImg.src = blobUrl;
+            prizeImg.onload = () => URL.revokeObjectURL(blobUrl); // 释放内存
         } catch (fetchErr) {
-          console.error('图片 fetch 失败:', fetchErr);
-          eggError.textContent = '图片加载异常，请稍后重试';
-          eggSubmit.disabled = false;
-          return;
+            console.error('图片 fetch 失败:', fetchErr);
+            eggError.textContent = '图片加载异常，请稍后重试';
+            eggSubmit.disabled = false;
+            return;
         }
 
         panel.classList.remove('open');

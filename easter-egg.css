@@ -3,7 +3,6 @@
    支持图片缩放与移动，移动端优化
    ============================================ */
 
-/* 彩蛋按钮，放在评论按钮下方 */
 #easterEggTrigger {
   position: fixed;
   top: 102px;
@@ -30,7 +29,6 @@
   transform: scale(0.85);
 }
 
-/* 遮罩层 */
 #eggMask {
   position: fixed;
   inset: 0;
@@ -45,7 +43,6 @@
   pointer-events: auto;
 }
 
-/* 弹窗通用样式 */
 .egg-dialog {
   position: fixed;
   top: 50%;
@@ -65,14 +62,12 @@
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* 输入弹窗 */
 #eggPanel {
   width: 320px;
   max-width: 90vw;
   padding: 24px 20px 20px;
 }
 
-/* 关闭按钮 */
 .egg-close {
   position: absolute;
   top: 10px;
@@ -91,7 +86,6 @@
   color: #fff;
 }
 
-/* 标题 */
 .egg-title {
   font-size: 20px;
   font-weight: bold;
@@ -99,7 +93,6 @@
   margin-bottom: 16px;
 }
 
-/* 输入框 */
 #eggInput {
   width: 100%;
   padding: 12px;
@@ -115,7 +108,6 @@
   color: #888;
 }
 
-/* 提交按钮 */
 #eggSubmit {
   margin-top: 14px;
   width: 100%;
@@ -135,7 +127,6 @@
   cursor: not-allowed;
 }
 
-/* 错误提示 */
 #eggError {
   margin-top: 10px;
   color: #f7934c;
@@ -144,7 +135,7 @@
   text-align: center;
 }
 
-/* ---------- 图片展示弹窗 - 强制全屏 ---------- */
+/* ---------- 图片展示弹窗 ---------- */
 #eggImagePanel {
   position: fixed !important;
   inset: 0 !important;
@@ -163,14 +154,12 @@
   padding: 0 !important;
   border-radius: 0 !important;
   overflow: hidden;
-  /* 父级 touch-action 设为 none，但关闭按钮需要单独启用 */
-  touch-action: none;
+  touch-action: none; /* 完全禁止浏览器手势，由 JS 接管 */
 }
 #eggImagePanel.open {
   transform: scale(1);
 }
 
-/* 图片本身：绝对定位，初始居中 */
 #eggPrizeImg {
   position: absolute;
   top: 50%;
@@ -178,12 +167,11 @@
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center center;
   will-change: transform;
-  pointer-events: none;      /* 事件穿透到父容器 */
+  pointer-events: none; /* 事件穿透，让父容器处理手势 */
   user-select: none;
   -webkit-user-drag: none;
 }
 
-/* 图片弹窗的关闭按钮（固定在屏幕右上角，覆盖父级 touch-action） */
 #eggImagePanel .egg-close {
   position: fixed;
   top: 20px;
@@ -202,12 +190,10 @@
   justify-content: center;
   cursor: pointer;
   border: 1px solid rgba(255,255,255,0.3);
-  /* 关键：关闭按钮必须允许点击 */
   touch-action: manipulation !important;
   pointer-events: auto !important;
 }
 
-/* 手机端微调 */
 @media (max-width: 600px) {
   #easterEggTrigger {
     top: 88px;

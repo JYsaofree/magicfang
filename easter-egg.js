@@ -72,6 +72,8 @@
     trigger.addEventListener('click', () => {
       // 防止和魔方操作冲突
       if (panel.classList.contains('open')) return;
+      // 锁定魔方操作
+      if (window.setEggLock) window.setEggLock(true);
       eggInput.value = '';
       eggError.textContent = '';
       mask.classList.add('active');
@@ -81,6 +83,8 @@
 
     // 关闭所有弹窗
     function closeAll() {
+      // 解锁魔方操作
+      if (window.setEggLock) window.setEggLock(false);
       mask.classList.remove('active');
       panel.classList.remove('open');
       imgPanel.classList.remove('open');
@@ -94,6 +98,8 @@
     eggImgClose.addEventListener('click', () => {
       imgPanel.classList.remove('open');
       mask.classList.remove('active');
+      // 解锁魔方
+      if (window.setEggLock) window.setEggLock(false);
     });
 
     // 提交验证
@@ -107,55 +113,37 @@
       eggSubmit.disabled = true;
       eggError.textContent = '验证中…';
 
-      try {
-        // 调用数据库函数验证
-        const { data: imagePath, error } = await window.supabase.rpc(
-          'verify_easter_egg',
-          { code_text: code }
-        );
+        try {
+            const { data: imagePath, error } = await window.supabase.rpc(
+                'verify_easter_egg',
+                { code_text: code }
+            );
 
-        if (error) {
-          console.error('验证错误:', error);
-          eggError.textContent = '网络错误，请重试';
-          eggSubmit.disabled = false;
-          return;
+            if (error) {
+                console.error('验证错误:', error);
+                eggError.textContent = '网络错误，请重试';
+                eggSubmit.disabled = false;
+                return;
+            }
+
+            if (!imagePath) {
+                eggError.textContent = '填写错误喵';
+                eggSubmit.disabled = false;
+                return;
+            }
+
+            // 直接使用公开链接（Storage 桶已设为 public）
+            const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
+            const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/${imagePath}`;
+            prizeImg.src = imageUrl;
+            panel.classList.remove('open');
+            imgPanel.classList.add('open');
+            eggSubmit.disabled = false;
+        } catch (err) {
+            console.error('未知错误:', err);
+            eggError.textContent = '出了点问题，请刷新';
+            eggSubmit.disabled = false;
         }
-
-        if (!imagePath) {
-          eggError.textContent = '填写错误喵';
-          eggSubmit.disabled = false;
-          return;
-        }
-
-        // 生成临时签名 URL（60秒有效）
-        const { data: signedData, error: signedError } = await window.supabase
-          .storage
-          .from('easter-eggs')
-          .createSignedUrl(imagePath, 60);
-
-        if (signedError) {
-          console.error('签名错误:', signedError);
-          eggError.textContent = '图片获取失败，请稍后';
-          eggSubmit.disabled = false;
-          return;
-        }
-
-        if (!signedData?.signedUrl) {
-          eggError.textContent = '图片加载异常';
-          eggSubmit.disabled = false;
-          return;
-        }
-
-        // 展示图片
-        prizeImg.src = signedData.signedUrl;
-        panel.classList.remove('open');
-        imgPanel.classList.add('open');
-        eggSubmit.disabled = false;
-      } catch (err) {
-        console.error('未知错误:', err);
-        eggError.textContent = '出了点问题，请刷新';
-        eggSubmit.disabled = false;
-      }
     });
 
     // 回车键提交

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>小小魔方（大修）</title>
+    <title>小小魔方喵呜~</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
     </script>
     <style>
@@ -113,15 +113,15 @@
         }
         @media (max-width: 600px) {
             :root { --btn-height: 40px; }
-            .card { padding: 4px 8px; border-radius: 9px; gap: 2px; }
-            .card .label { font-size: 7px; }
-            .card .value { font-size: 12px; }
-            .solver-card .value { font-size: 8px; }
-            .action-btn { font-size: 10px; min-width: 85px; padding: 0 12px; }
+            .card { padding: 6px 12px; border-radius: 12px; gap: 4px; }
+            .card .label { font-size: 12px; }
+            .card .value { font-size: 18px; }
+            .solver-card .value { font-size: 13px; }
+            .action-btn { font-size: 14px; min-width: 95px; padding: 0 16px; }
             #actionHint { font-size: 7px; padding: 3px 8px; }
-            #solverBadge { font-size: 7px; padding: 3px 7px; }
-            #manualLoadBtn { font-size: 7px; padding: 3px 7px; }
-            #commentTrigger { top: 44px; width: 30px; height: 30px; font-size: 14px; }
+            #solverBadge { font-size: 11px; padding: 5px 9px; }
+            #manualLoadBtn { font-size: 11px; padding: 5px 9px; }
+            #commentTrigger { top: 44px; width: 36px; height: 36px; font-size: 20px; }
         }
     </style>
 </head>
@@ -297,13 +297,21 @@
         const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
         camera.position.set(5.5,4.2,7.2); camera.lookAt(0,0,0);
 
+        // 魔方初始更小 (半径更大)
         function getResponsiveRadius() {
             const w = innerWidth;
-            if (w < 380) return 11.8;
-            if (w < 600) return 10.8;
-            return 8.8;
+            if (w < 380) return 16.5;
+            if (w < 600) return 15.5;
+            return 13.5;
         }
         let sphericalRadius = getResponsiveRadius();
+
+        // 缩放范围：放大不能太近(min增大)，缩小可以更远(max增大)
+        const ZOOM_MIN = 8;
+        const ZOOM_MAX = 18;
+        function clampRadius(r) {
+            return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, r));
+        }
 
         function updateCamera(){
             const p=new THREE.Vector3().setFromSphericalCoords(sphericalRadius, Math.PI/3, Math.PI/4);
@@ -576,7 +584,7 @@
             requestAnimationFrame(step);
         }
 
-        // --- 交互 (最终修正：全局反转旋转方向) ---
+        // --- 交互 ---
         const raycaster=new THREE.Raycaster();
         const activePointers=new Map();
         let isRightDragging=false, prevPointer={x:0,y:0,dist:0};
@@ -618,7 +626,6 @@
                 const worldAxis=localAxis.clone().applyQuaternion(mainGroup.quaternion).normalize();
                 const origin=new THREE.Vector3(0,0,0);
                 const p1=origin.clone().project(camera), p2=origin.clone().add(worldAxis).project(camera);
-                // 注意：NDC y向上，屏幕y向下，因此sy取负，使得屏幕投影与手指移动方向一致
                 const sx=(p2.x-p1.x)*renderer.domElement.clientWidth*0.5;
                 const sy=-(p2.y-p1.y)*renderer.domElement.clientHeight*0.5;
                 const len=Math.sqrt(sx*sx+sy*sy);
@@ -639,8 +646,6 @@
             
             if(!best || bestProj < dragProjThreshold) return null;
             
-            console.log('选中层:', best.axis, '值:', best.value);
-            
             const cubies=attachLayer(best.axis,best.value);
             return {
                 axis: best.axis,
@@ -657,9 +662,7 @@
         function updateDrag(e){
             if(!dragInfo)return;
             const dx=e.clientX-dragInfo.startX, dy=e.clientY-dragInfo.startY;
-            // 叉积: dx * axisY - dy * axisX 决定旋转方向（屏幕坐标系，y向下）
             const cross = dx * dragInfo.axisScreenY - dy * dragInfo.axisScreenX;
-            // 全局反转方向，确保水平和竖直拖拽都跟手
             dragInfo.angle = -cross * dragSensitivity;
             const a=dragInfo.axis;
             pivotGroup.rotation.set(a==='x'?dragInfo.angle:0, a==='y'?dragInfo.angle:0, a==='z'?dragInfo.angle:0);
@@ -725,8 +728,7 @@
                     if(Math.abs(dx)>0.5){mainGroup.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(worldY,dx*sensitivity));needsSnap=true;}
                     if(Math.abs(dy)>0.5){mainGroup.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(cameraRight,-dy*sensitivity));needsSnap=true;}
                     const dist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
-                    if(prevPointer.dist>0)sphericalRadius*=prevPointer.dist/dist;
-                    sphericalRadius=Math.max(4,Math.min(14,sphericalRadius));
+                    if(prevPointer.dist>0) sphericalRadius = clampRadius(sphericalRadius * prevPointer.dist / dist);
                     prevPointer.dist=dist; updateCamera();
                     prevPointer.x=cx; prevPointer.y=cy;
                 }else if(pts.length===1){
@@ -755,8 +757,7 @@
 
         canvas.addEventListener('wheel',e=>{
             if(commentState!=='closed')return;
-            sphericalRadius+=e.deltaY*0.01;
-            sphericalRadius=Math.max(4,Math.min(14,sphericalRadius));
+            sphericalRadius = clampRadius(sphericalRadius + e.deltaY * 0.01);
             updateCamera();
         },{passive:false});
 
@@ -769,7 +770,7 @@
             camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
             renderer.setSize(innerWidth,innerHeight);
             const newRadius = getResponsiveRadius();
-            if (sphericalRadius < 4 || sphericalRadius > 14) sphericalRadius = newRadius;
+            if (sphericalRadius < ZOOM_MIN || sphericalRadius > ZOOM_MAX) sphericalRadius = clampRadius(newRadius);
             updateCamera();
         });
 

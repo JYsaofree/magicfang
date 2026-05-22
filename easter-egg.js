@@ -1,6 +1,6 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 移动端手势：单指拖拽，双指缩放，简单可靠
+// 使用 pointer 事件统一桌面和移动端，支持拖拽、缩放
 
 (function() {
   function init() {
@@ -59,7 +59,6 @@
     const eggError = document.getElementById('eggError');
     const prizeImg = document.getElementById('eggPrizeImg');
 
-    // 图片变换状态
     const imgState = { x: 0, y: 0, scale: 1 };
 
     function resetImage() {
@@ -81,7 +80,7 @@
       imgPanel.style.cssText = '';
       mask.classList.remove('active');
       resetImage();
-      clearTouches();
+      clearGestureState();
       if (window.setEggLock) window.setEggLock(false);
     }
 
@@ -93,93 +92,84 @@
       eggSubmit.disabled = false;
     }
 
-    // ============= 触摸手势核心 =============
-    let activeTouches = new Map();       // identifier -> {x, y}
-    let dragBase = null;                // 单指拖拽基准 {x, y, startX, startY}
-    let pinchStart = null;             // 双指起始数据 {dist, scale, x, y, center}
+    // ============= Pointer 事件手势处理 =============
+    let pointers = new Map();       // pointerId -> {clientX, clientY}
+    let dragStart = null;          // 拖拽起始 {x, y, imgX, imgY}
+    let pinchStart = null;         // 缩放起始 {dist, scale, x, y, center}
 
-    function clearTouches() {
-      activeTouches.clear();
-      dragBase = null;
+    function clearGestureState() {
+      pointers.clear();
+      dragStart = null;
       pinchStart = null;
     }
 
-    function getTouchCenter() {
-      const pts = [...activeTouches.values()];
+    function getPointerCenter() {
+      const pts = [...pointers.values()];
       return {
-        x: (pts[0].x + pts[1].x) / 2,
-        y: (pts[0].y + pts[1].y) / 2
+        x: (pts[0].clientX + pts[1].clientX) / 2,
+        y: (pts[0].clientY + pts[1].clientY) / 2
       };
     }
 
-    function handleTouchStart(e) {
+    function onPointerDown(e) {
       if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
+      imgPanel.setPointerCapture(e.pointerId);
 
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
-      }
+      pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
-      const count = activeTouches.size;
+      const count = pointers.size;
 
       if (count === 1) {
-        // 开始单指拖拽（无论之前状态如何，直接重置基准）
-        const [first] = activeTouches.values();
-        dragBase = {
-          x: first.x,
-          y: first.y,
-          startX: imgState.x,
-          startY: imgState.y
+        // 开始拖拽（鼠标或单指）
+        dragStart = {
+          x: e.clientX,
+          y: e.clientY,
+          imgX: imgState.x,
+          imgY: imgState.y
         };
         pinchStart = null;
       } else if (count === 2) {
         // 开始双指缩放
-        const pts = [...activeTouches.values()];
-        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const pts = [...pointers.values()];
+        const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         pinchStart = {
           dist: dist,
           scale: imgState.scale,
           x: imgState.x,
           y: imgState.y,
-          center: getTouchCenter()
+          center: getPointerCenter()
         };
-        dragBase = null; // 停止可能存在的拖拽
+        dragStart = null;
       }
     }
 
-    function handleTouchMove(e) {
+    function onPointerMove(e) {
       if (!imgPanel.classList.contains('open')) return;
-      if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
 
-      // 更新触摸点位置
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        if (activeTouches.has(t.identifier)) {
-          activeTouches.get(t.identifier).x = t.clientX;
-          activeTouches.get(t.identifier).y = t.clientY;
-        }
-      }
+      if (!pointers.has(e.pointerId)) return;
+      pointers.get(e.pointerId).clientX = e.clientX;
+      pointers.get(e.pointerId).clientY = e.clientY;
 
-      const count = activeTouches.size;
+      const count = pointers.size;
 
-      if (count === 1 && dragBase) {
-        // 单指拖拽
-        const [pt] = activeTouches.values();
-        const deltaX = pt.x - dragBase.x;
-        const deltaY = pt.y - dragBase.y;
-        imgState.x = dragBase.startX + deltaX;
-        imgState.y = dragBase.startY + deltaY;
+      if (count === 1 && dragStart) {
+        // 拖拽中
+        const [pt] = pointers.values();
+        const deltaX = pt.clientX - dragStart.x;
+        const deltaY = pt.clientY - dragStart.y;
+        imgState.x = dragStart.imgX + deltaX;
+        imgState.y = dragStart.imgY + deltaY;
         applyTransform();
       } else if (count === 2 && pinchStart) {
-        // 双指缩放
-        const pts = [...activeTouches.values()];
-        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        // 缩放中
+        const pts = [...pointers.values()];
+        const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         if (pinchStart.dist === 0) return;
         const scaleChange = dist / pinchStart.dist;
         const newScale = pinchStart.scale * scaleChange;
-        const center = getTouchCenter();
+        const center = getPointerCenter();
 
         const rect = prizeImg.getBoundingClientRect();
         const imgCenterX = rect.left + rect.width / 2;
@@ -194,38 +184,32 @@
       }
     }
 
-    function handleTouchEnd(e) {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        activeTouches.delete(e.changedTouches[i].identifier);
-      }
-
-      const count = activeTouches.size;
+    function onPointerUp(e) {
+      pointers.delete(e.pointerId);
+      const count = pointers.size;
 
       if (count === 0) {
-        clearTouches();
-      } else if (count === 1) {
-        // 从双指变为单指：将剩余的单指作为新的拖拽起点，无缝衔接拖拽
-        if (pinchStart) {
-          const [pt] = activeTouches.values();
-          dragBase = {
-            x: pt.x,
-            y: pt.y,
-            startX: imgState.x,
-            startY: imgState.y
-          };
-          pinchStart = null;
-        }
-        // 如果之前就是单指拖拽，保持 dragBase 不变（已经在 move 中更新）
-      } else if (count === 2) {
-        // 理论上不会进入，但保留
+        clearGestureState();
+      } else if (count === 1 && pinchStart) {
+        // 从双指变为单指：将剩余指针作为新的拖拽起点
+        const [pt] = pointers.values();
+        dragStart = {
+          x: pt.clientX,
+          y: pt.clientY,
+          imgX: imgState.x,
+          imgY: imgState.y
+        };
+        pinchStart = null;
       }
+      // 如果 count === 1 且之前就是拖拽，继续保持 dragStart（已更新坐标）
     }
 
-    // 桌面端滚轮缩放
+    // 滚轮缩放（桌面端）
     function onWheel(e) {
       if (!imgPanel.classList.contains('open')) return;
       if (e.target.closest('#eggImgClose')) return;
       e.preventDefault();
+
       const delta = -Math.sign(e.deltaY) * 0.1;
       const newScale = imgState.scale * (1 + delta);
       const rect = prizeImg.getBoundingClientRect();
@@ -241,11 +225,12 @@
       applyTransform();
     }
 
-    // 绑定触摸事件
-    imgPanel.addEventListener('touchstart', handleTouchStart, { passive: false });
-    imgPanel.addEventListener('touchmove', handleTouchMove, { passive: false });
-    imgPanel.addEventListener('touchend', handleTouchEnd);
-    imgPanel.addEventListener('touchcancel', handleTouchEnd);
+    // 绑定 pointer 事件
+    imgPanel.addEventListener('pointerdown', onPointerDown);
+    imgPanel.addEventListener('pointermove', onPointerMove);
+    imgPanel.addEventListener('pointerup', onPointerUp);
+    imgPanel.addEventListener('pointercancel', onPointerUp);
+    imgPanel.addEventListener('pointerleave', onPointerUp); // 确保离开时清理
     imgPanel.addEventListener('wheel', onWheel, { passive: false });
 
     // 打开图片弹窗时重置状态
@@ -253,7 +238,7 @@
       mutations.forEach((m) => {
         if (m.target === imgPanel && imgPanel.classList.contains('open')) {
           resetImage();
-          clearTouches();
+          clearGestureState();
         }
       });
     });

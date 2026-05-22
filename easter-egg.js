@@ -1,6 +1,6 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 修复：缩放达极限后不再移动位置，拖拽灵敏，边界自动修正
+// 最终版：双指缩放边界完全静止，拖拽灵敏，边界自动修正
 
 (function() {
   function init() {
@@ -62,6 +62,7 @@
     const imgState = { x: 0, y: 0, scale: 1 };
     const MIN_SCALE = 0.5;
     const MAX_SCALE = 3;
+    const EPS = 0.0001; // 容差
 
     function resetImage() {
       imgState.x = 0;
@@ -70,7 +71,7 @@
       applyTransform();
     }
 
-    // 边界限制：确保图片至少有一部分在屏幕内（仅拖拽时调用）
+    // 边界限制（仅用于拖拽）
     function constrainPosition() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -103,14 +104,12 @@
       imgState.y = Math.min(maxY, Math.max(minY, imgState.y));
     }
 
-    // 应用变换（仅设置 CSS，不执行边界限制）
     function applyTransform() {
       imgState.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, imgState.scale));
       prizeImg.style.transform =
         `translate(calc(-50% + ${imgState.x}px), calc(-50% + ${imgState.y}px)) scale(${imgState.scale})`;
     }
 
-    // 拖拽专用：先限制再应用
     function applyTransformWithConstraint() {
       constrainPosition();
       applyTransform();
@@ -165,7 +164,6 @@
       const count = pointers.size;
 
       if (count === 1) {
-        // 开始拖拽
         dragStart = {
           x: e.clientX,
           y: e.clientY,
@@ -175,7 +173,6 @@
         pinchStart = null;
         pendingDrag = false;
       } else if (count === 2) {
-        // 开始双指缩放，强制取消拖拽
         const pts = [...pointers.values()];
         const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         pinchStart = {
@@ -206,18 +203,20 @@
         const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
         if (pinchStart.dist === 0) return;
 
-        const scaleChange = dist / pinchStart.dist;
-        let newScale = pinchStart.scale * scaleChange;
+        const rawScaleChange = dist / pinchStart.dist;
+        let newScale = pinchStart.scale * rawScaleChange;
 
-        // 限制缩放范围
+        // 钳制缩放比例
         const clampedScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
 
-        // 如果达到边界且比例不再变化，直接返回，避免位置偏移
-        if (clampedScale === imgState.scale) return;
+        // 使用容差判断是否已到边界，若是则完全停止位置更新
+        if (Math.abs(clampedScale - imgState.scale) < EPS && Math.abs(newScale - clampedScale) < EPS) {
+          // 已达边界，不再更新
+          return;
+        }
 
-        // 实际生效的比例（允许超出边界，但最终会 clamp）
+        // 实际生效的缩放（取钳制后的）
         const effectiveScale = clampedScale;
-
         const center = getPointerCenter();
         const rect = prizeImg.getBoundingClientRect();
         const imgCenterX = rect.left + rect.width / 2;
@@ -225,17 +224,16 @@
         const offsetX = center.x - imgCenterX;
         const offsetY = center.y - imgCenterY;
 
-        // 根据有效缩放计算位置，使缩放中心保持不动
+        // 使用有效缩放比来计算位置，保持手势中心不动
         const realScaleChange = effectiveScale / pinchStart.scale;
         imgState.x = pinchStart.x + offsetX * (1 - realScaleChange);
         imgState.y = pinchStart.y + offsetY * (1 - realScaleChange);
         imgState.scale = effectiveScale;
-
         applyTransform(); // 不约束，保持流畅
         return;
       }
 
-      // 单指操作
+      // 单指拖拽
       if (count === 1) {
         const [pt] = pointers.values();
 
@@ -258,7 +256,7 @@
           const deltaY = pt.clientY - dragStart.y;
           imgState.x = dragStart.imgX + deltaX;
           imgState.y = dragStart.imgY + deltaY;
-          applyTransformWithConstraint(); // 拖拽时限制边界
+          applyTransformWithConstraint();
         }
       }
     }
@@ -268,12 +266,10 @@
       const count = pointers.size;
 
       if (count === 0) {
-        // 所有手指抬起，确保边界并清理
         constrainPosition();
         applyTransform();
         clearGestureState();
       } else if (count === 1 && pinchStart) {
-        // 缩放结束，剩余单指防误触
         const [pt] = pointers.values();
         pendingDrag = true;
         pendingDragOrigin = {
@@ -285,13 +281,12 @@
         pinchStart = null;
         dragStart = null;
 
-        // 缩放结束后应用一次边界限制
         constrainPosition();
         applyTransform();
       }
     }
 
-    // 滚轮缩放（桌面端）
+    // 滚轮缩放
     function onWheel(e) {
       if (!imgPanel.classList.contains('open')) return;
       if (e.target.closest('#eggImgClose')) return;
@@ -301,9 +296,11 @@
       let newScale = imgState.scale * (1 + delta);
       const clampedScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
 
-      // 达到边界后不再移动位置
-      if (clampedScale === imgState.scale) return;
+      if (Math.abs(clampedScale - imgState.scale) < EPS && Math.abs(newScale - clampedScale) < EPS) {
+        return; // 已达边界
+      }
 
+      const effectiveScale = clampedScale;
       const rect = prizeImg.getBoundingClientRect();
       const mouseX = e.clientX;
       const mouseY = e.clientY;
@@ -312,14 +309,13 @@
       const offsetX = mouseX - imgCenterX;
       const offsetY = mouseY - imgCenterY;
 
-      const realScaleChange = clampedScale / imgState.scale;
+      const realScaleChange = effectiveScale / imgState.scale;
       imgState.x += offsetX * (1 - realScaleChange);
       imgState.y += offsetY * (1 - realScaleChange);
-      imgState.scale = clampedScale;
+      imgState.scale = effectiveScale;
 
-      applyTransform(); // 不约束，流畅
+      applyTransform();
 
-      // 滚轮停止 200ms 后自动应用边界
       clearTimeout(imgPanel._wheelTimeout);
       imgPanel._wheelTimeout = setTimeout(() => {
         constrainPosition();
@@ -327,7 +323,6 @@
       }, 200);
     }
 
-    // 绑定事件
     imgPanel.addEventListener('pointerdown', onPointerDown);
     imgPanel.addEventListener('pointermove', onPointerMove);
     imgPanel.addEventListener('pointerup', onPointerUp);

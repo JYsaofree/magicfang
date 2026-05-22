@@ -137,6 +137,7 @@
             const imageUrl = `${supabaseUrl}/storage/v1/object/public/easter-eggs/${imagePath}`;
             console.log('✅ 验证通过，图片路径:', imagePath);
             console.log('🖼️ 完整图片 URL:', imageUrl);
+            prizeImg.crossOrigin = "anonymous";  // 添加这一行
             prizeImg.src = imageUrl;
             panel.classList.remove('open');
             imgPanel.classList.add('open');

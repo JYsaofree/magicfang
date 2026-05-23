@@ -1,6 +1,7 @@
 /* ============================================
    彩蛋模块样式 (easter-egg.css)
    支持图片缩放与移动，移动端优化
+   新增音乐提醒弹窗
    ============================================ */
 
 #easterEggTrigger {
@@ -154,7 +155,7 @@
   padding: 0 !important;
   border-radius: 0 !important;
   overflow: hidden;
-  touch-action: none; /* 完全禁止浏览器手势，由 JS 接管 */
+  touch-action: none;
 }
 #eggImagePanel.open {
   transform: scale(1);
@@ -167,7 +168,7 @@
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center center;
   will-change: transform;
-  pointer-events: none; /* 事件穿透，让父容器处理手势 */
+  pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -192,6 +193,40 @@
   border: 1px solid rgba(255,255,255,0.3);
   touch-action: manipulation !important;
   pointer-events: auto !important;
+}
+
+/* ---------- 音乐提醒弹窗 ---------- */
+#eggNoticePanel {
+  width: 300px;
+  max-width: 85vw;
+  padding: 32px 24px 28px;
+  text-align: center;
+  background: #1e1e2e;
+  z-index: 35;
+}
+.egg-notice-emoji {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+.egg-notice-text {
+  font-size: 18px;
+  color: #eee;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.egg-notice-btn {
+  background: #4ecdc4;
+  color: #0a0a1a;
+  border: none;
+  border-radius: 20px;
+  padding: 12px 36px;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.egg-notice-btn:active {
+  background: #3dbdb5;
 }
 
 @media (max-width: 600px) {
@@ -237,5 +272,15 @@
     top: 16px;
     right: 16px;
     border-radius: 24px;
+  }
+  
+  #eggNoticePanel {
+    padding: 28px 20px 24px;
+  }
+  .egg-notice-emoji {
+    font-size: 40px;
+  }
+  .egg-notice-text {
+    font-size: 16px;
   }
 }

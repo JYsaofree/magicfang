@@ -1,32 +1,75 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 拖拽灵敏度：DRAG_SPEED = 1.6
+// 每个彩蛋码独立图片与音频，左上角音符按钮控制播放/暂停
 
 (function() {
   const DRAG_SPEED = 1.6;
 
-  // ===== 🎵 音乐配置（使用 Supabase Storage 公开 URL）=====
-  // 👇 请将这里替换为你上传音乐后获取的公开 URL
-  const MUSIC_URL = 'https://zebyboiepollbowhidui.supabase.co/storage/v1/object/public/music/hong16-egg-music.mp3';
+  // ===== 全局音频控制 =====
   let bgMusic = null;
+  let musicPlaying = false;
 
-  function ensureMusic() {
-    if (!bgMusic) {
-      bgMusic = new Audio(MUSIC_URL);
-      bgMusic.loop = true;
-      bgMusic.volume = 0.8;
+  function createAudio(url) {
+    if (bgMusic) {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+      bgMusic = null;
     }
-    bgMusic.currentTime = 0;
-    bgMusic.play().catch(e => console.log('音乐播放失败（可能需用户交互）:', e));
+    if (!url) return null;
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.volume = 0.8;
+    audio.addEventListener('play', () => { musicPlaying = true; updateNoteButton(); });
+    audio.addEventListener('pause', () => { musicPlaying = false; updateNoteButton(); });
+    return audio;
   }
 
   function stopMusic() {
     if (bgMusic) {
       bgMusic.pause();
       bgMusic.currentTime = 0;
+      bgMusic = null;
     }
+    musicPlaying = false;
+    updateNoteButton();
   }
 
+  // 音符按钮 UI
+  const noteBtn = document.createElement('button');
+  noteBtn.id = 'eggMusicNote';
+  noteBtn.innerHTML = '🎵';
+  noteBtn.title = '播放/暂停音乐';
+  document.body.appendChild(noteBtn);
+
+  function updateNoteButton() {
+    if (musicPlaying) {
+      noteBtn.classList.add('spinning');
+      noteBtn.classList.remove('paused');
+    } else {
+      noteBtn.classList.add('paused');
+      if (!bgMusic) {
+        noteBtn.classList.remove('show', 'spinning', 'paused');
+        return;
+      }
+    }
+    noteBtn.classList.add('show');
+  }
+
+  function hideNoteButton() {
+    noteBtn.classList.remove('show', 'spinning', 'paused');
+  }
+
+  noteBtn.addEventListener('click', () => {
+    if (!bgMusic) return;
+    if (bgMusic.paused) {
+      bgMusic.play().catch(e => console.log('恢复播放失败:', e));
+    } else {
+      bgMusic.pause();
+    }
+  });
+  noteBtn.addEventListener('touchend', (e) => { e.preventDefault(); noteBtn.click(); });
+
+  // ===== 原有 UI 创建 =====
   function init() {
     if (!window.supabaseClient) {
       setTimeout(init, 500);
@@ -158,6 +201,7 @@
       resetImage();
       clearGestureState();
       stopMusic();
+      hideNoteButton();
       if (window.setEggLock) window.setEggLock(false);
     }
 
@@ -198,7 +242,7 @@
     }
 
     function onPointerDown(e) {
-      if (e.target.closest('#eggImgClose')) return;
+      if (e.target.closest('#eggImgClose') || e.target.closest('#eggMusicNote')) return;
       e.preventDefault();
       imgPanel.setPointerCapture(e.pointerId);
 
@@ -321,7 +365,7 @@
 
     function onWheel(e) {
       if (!imgPanel.classList.contains('open')) return;
-      if (e.target.closest('#eggImgClose')) return;
+      if (e.target.closest('#eggImgClose') || e.target.closest('#eggMusicNote')) return;
       e.preventDefault();
 
       const delta = -Math.sign(e.deltaY) * 0.1;
@@ -394,11 +438,8 @@
     });
     mask.addEventListener('touchend', (e) => {
       e.preventDefault();
-      if (noticePanel.classList.contains('open')) {
-        closeNoticePanel();
-      } else {
-        closeAll();
-      }
+      if (noticePanel.classList.contains('open')) closeNoticePanel();
+      else closeAll();
     });
 
     function onImgClose(e) {
@@ -412,7 +453,7 @@
     eggNoticeClose.addEventListener('click', closeNoticePanel);
     eggNoticeClose.addEventListener('touchend', (e) => { e.preventDefault(); closeNoticePanel(); });
 
-    // ---------- 兑换 ----------
+    // ---------- 兑换流程 ----------
     const handleSubmit = async () => {
       const code = eggInput.value.trim();
       if (!code) { eggError.textContent = '请输入彩蛋码'; return; }
@@ -420,16 +461,19 @@
       eggError.textContent = '验证中…';
 
       try {
-        const { data: imagePath, error } = await window.supabaseClient.rpc(
+        const { data, error } = await window.supabaseClient.rpc(
           'verify_easter_egg', { code_text: code }
         );
         if (error) { eggError.textContent = '网络错误，请重试'; eggSubmit.disabled = false; return; }
-        if (!imagePath) { eggError.textContent = '填写错误喵'; eggSubmit.disabled = false; return; }
+        if (!data || !data.image_path) { eggError.textContent = '填写错误喵'; eggSubmit.disabled = false; return; }
+
+        const imagePath = data.image_path;
+        const musicPath = data.music_path; // 可能为 null
 
         const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
         const imageUrl = `${supabaseUrl}/storage/v1/object/public/caise-eggs/${imagePath}`;
+        const musicUrl = musicPath ? `${supabaseUrl}/storage/v1/object/public/music/${musicPath}` : null;
 
-        // 兑换成功，先显示提醒弹窗
         panel.classList.remove('open');
         noticePanel.classList.add('open');
         eggSubmit.disabled = false;
@@ -448,11 +492,7 @@
 
           try {
             const response = await fetch(imageUrl);
-            if (!response.ok) {
-              const errText = await response.text();
-              console.error('❌ Supabase 错误详情：', response.status, errText);
-              throw new Error(`服务器返回 ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`服务器返回 ${response.status}`);
             const blob = await response.blob();
             const blobUrl = URL.createObjectURL(blob);
             prizeImg.src = blobUrl;
@@ -469,7 +509,18 @@
           }
 
           imgPanel.classList.add('open');
-          ensureMusic();
+
+          if (musicUrl) {
+            bgMusic = createAudio(musicUrl);
+            if (bgMusic) {
+              bgMusic.play().then(() => {
+                musicPlaying = true;
+                updateNoteButton();
+              }).catch(e => console.log('自动播放被阻止:', e));
+            }
+          } else {
+            hideNoteButton();
+          }
         };
 
         noticeStartBtn.addEventListener('click', onStart);

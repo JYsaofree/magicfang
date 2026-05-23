@@ -124,6 +124,8 @@
             #commentTrigger { top: 44px; width: 36px; height: 36px; font-size: 20px; }
         }
     </style>
+    <!-- 彩蛋模块样式 -->
+    <link rel="stylesheet" href="easter-egg.css">
 </head>
 <body>
     <div id="ui">
@@ -167,19 +169,16 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 设备适配参数 ---
         const isFinePointer = window.matchMedia('(pointer: fine)').matches;
         const dragStartThreshold = isFinePointer ? 5 : 7;
         const dragProjThreshold = isFinePointer ? 5 : 8;
         const dragSensitivity = isFinePointer ? 0.022 : 0.014;
 
-        // --- Supabase ---
         const SUPABASE_URL = 'https://zebyboiepollbowhidui.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplYnlib2llcG9sbGJvd2hpZHVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjg5NDgsImV4cCI6MjA5NDkwNDk0OH0.ASKBKur6fheLUdSukFv_LfqhRRClZY8Dz3J_2sGRUMA';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         window.supabaseClient = supabase;
-        
-        // --- Solver ---
+
         const solverBadge = document.getElementById('solverBadge');
         const manualLoadBtn = document.getElementById('manualLoadBtn');
         let solveFunc = null, backupSolveFunc = null;
@@ -223,7 +222,6 @@
         };
         initSolvers();
 
-        // --- Comments ---
         const commentTrigger=document.getElementById('commentTrigger');
         const commentMask=document.getElementById('commentMask');
         const commentPanel=document.getElementById('commentPanel');
@@ -292,13 +290,11 @@
         };
         commentContent.oninput=()=>{ charCount.textContent=`${commentContent.value.length}/100`; };
 
-        // --- Three.js Scene ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color('#0b0b1a');
         const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
         camera.position.set(5.5,4.2,7.2); camera.lookAt(0,0,0);
 
-        // 魔方初始更小 (半径更大)
         function getResponsiveRadius() {
             const w = innerWidth;
             if (w < 380) return 16.5;
@@ -307,7 +303,6 @@
         }
         let sphericalRadius = getResponsiveRadius();
 
-        // 缩放范围：放大不能太近(min增大)，缩小可以更远(max增大)
         const ZOOM_MIN = 8;
         const ZOOM_MAX = 18;
         function clampRadius(r) {
@@ -401,17 +396,16 @@
         }
 
         let busy=false, dragInfo=null, pendingDrag=false, dragStartData=null;
-        // 彩蛋模块专用锁
-            window._eggLocked = false;
-            window.setEggLock = function(locked) {
+        window._eggLocked = false;
+        window.setEggLock = function(locked) {
             window._eggLocked = locked;
             if (locked) {
                 btnSolve.disabled = true;
                 btnScramble.disabled = true;
             } else {
-            updateButtonStates();
-                }
-            };
+                updateButtonStates();
+            }
+        };
         let history=[], manualCount=0; 
         const moveCountEl=document.getElementById('moveCount');
         const solveCountEl=document.getElementById('solveCount');
@@ -538,7 +532,6 @@
         btnScramble.onclick=()=>{if(!busy&&commentState==='closed')scramble();};
         updateButtonStates();
 
-        // --- 吸附逻辑 ---
         let snapAnimating = false;
         let pendingSnap = false;
         const faceNormals = {
@@ -596,7 +589,6 @@
             requestAnimationFrame(step);
         }
 
-        // --- 交互 ---
         const raycaster=new THREE.Raycaster();
         const activePointers=new Map();
         let isRightDragging=false, prevPointer={x:0,y:0,dist:0};
@@ -794,8 +786,7 @@
         updateCamera();
         animate();
     </script>
-    <!-- 彩蛋模块 -->
-    <link rel="stylesheet" href="easter-egg.css">
+    <!-- 彩蛋模块脚本 -->
     <script src="easter-egg.js"></script>
 </body>
 </html>

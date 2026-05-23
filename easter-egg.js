@@ -464,6 +464,8 @@
         const { data, error } = await window.supabaseClient.rpc(
           'verify_easter_egg', { code_text: code }
         );
+        console.log('RPC 返回的 data:', JSON.stringify(data));
+        console.log('RPC 返回的 error:', error);
         if (error) { eggError.textContent = '网络错误，请重试'; eggSubmit.disabled = false; return; }
         if (!data || !data.image_path) { eggError.textContent = '填写错误喵'; eggSubmit.disabled = false; return; }
 

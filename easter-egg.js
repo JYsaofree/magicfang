@@ -140,14 +140,14 @@
     const prizeImg = document.getElementById('eggPrizeImg');
     const noticeStartBtn = document.getElementById('eggNoticeStart');
 
-    const imgState = { x: 0, y: 0, scale: 1 };
-    const MIN_SCALE = 0.5;
+    const imgState = { x: 0, y: 0, scale: 0.7 };
+    const MIN_SCALE = 0.3;
     const MAX_SCALE = 3;
 
     function resetImage() {
       imgState.x = 0;
       imgState.y = 0;
-      imgState.scale = 1;
+      imgState.scale = 0.7;
       applyTransform();
     }
 

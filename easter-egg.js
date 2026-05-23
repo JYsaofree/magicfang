@@ -7,7 +7,7 @@
 
   // ===== 🎵 音乐配置（使用 Supabase Storage 公开 URL）=====
   // 👇 请将这里替换为你上传音乐后获取的公开 URL
-  const MUSIC_URL = 'https://zebyboiepollbowhidui.supabase.co/storage/v1/object/public/music/egg-music.mp3';
+  const MUSIC_URL = 'https://zebyboiepollbowhidui.supabase.co/storage/v1/object/public/music/hong16-egg-music.mp3';
   let bgMusic = null;
 
   function ensureMusic() {

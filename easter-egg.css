@@ -1,7 +1,7 @@
 /* ============================================
    彩蛋模块样式 (easter-egg.css)
    支持图片缩放与移动，移动端优化
-   新增音乐提醒弹窗
+   新增音乐提醒弹窗、音符按钮及旋转动画
    ============================================ */
 
 #easterEggTrigger {
@@ -229,6 +229,47 @@
   background: #3dbdb5;
 }
 
+/* ---------- 音符控制按钮 ---------- */
+#eggMusicNote {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10001;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(78, 205, 196, 0.9);
+  color: #0a0a1a;
+  font-size: 28px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  transition: background 0.2s;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#eggMusicNote.show {
+  display: flex;
+}
+#eggMusicNote:active {
+  background: rgba(78, 205, 196, 1);
+  transform: scale(0.9);
+}
+#eggMusicNote.spinning {
+  animation: noteSpin 3s linear infinite;
+}
+@keyframes noteSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+#eggMusicNote.paused {
+  animation-play-state: paused;
+}
+
 @media (max-width: 600px) {
   #easterEggTrigger {
     top: 88px;
@@ -282,5 +323,13 @@
   }
   .egg-notice-text {
     font-size: 16px;
+  }
+  
+  #eggMusicNote {
+    top: 16px;
+    left: 16px;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
   }
 }

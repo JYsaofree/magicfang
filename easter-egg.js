@@ -467,10 +467,15 @@
         console.log('RPC 返回的 data:', JSON.stringify(data));
         console.log('RPC 返回的 error:', error);
         if (error) { eggError.textContent = '网络错误，请重试'; eggSubmit.disabled = false; return; }
-        if (!data || !data.image_path) { eggError.textContent = '填写错误喵'; eggSubmit.disabled = false; return; }
-
-        const imagePath = data.image_path;
-        const musicPath = data.music_path; // 可能为 null
+        // RPC 返回的是数组，取第一项
+        const result = Array.isArray(data) ? data[0] : data;
+        if (!result || !result.image_path) {
+          eggError.textContent = '填写错误喵';
+          eggSubmit.disabled = false;
+        return;
+        }
+        const imagePath = result.image_path;
+        const musicPath = result.music_path;
 
         const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
         const imageUrl = `${supabaseUrl}/storage/v1/object/public/caise-eggs/${imagePath}`;

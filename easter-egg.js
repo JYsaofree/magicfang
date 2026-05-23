@@ -1,10 +1,31 @@
 // easter-egg.js
 // 依赖：window.supabaseClient
-// 提升拖拽速度：DRAG_SPEED = 1.6
+// 拖拽灵敏度：DRAG_SPEED = 1.6
 
 (function() {
-  // 拖拽灵敏度（1 为原始跟随，数值越大移动越快）
   const DRAG_SPEED = 1.6;
+
+  // ===== 🎵 音乐配置（使用 Supabase Storage 公开 URL）=====
+  // 👇 请将这里替换为你上传音乐后获取的公开 URL
+  const MUSIC_URL = 'https://zebyboiepollbowhidui.supabase.co/storage/v1/object/public/music/egg-music.mp3';
+  let bgMusic = null;
+
+  function ensureMusic() {
+    if (!bgMusic) {
+      bgMusic = new Audio(MUSIC_URL);
+      bgMusic.loop = true;
+      bgMusic.volume = 0.8;
+    }
+    bgMusic.currentTime = 0;
+    bgMusic.play().catch(e => console.log('音乐播放失败（可能需用户交互）:', e));
+  }
+
+  function stopMusic() {
+    if (bgMusic) {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+    }
+  }
 
   function init() {
     if (!window.supabaseClient) {
@@ -48,6 +69,17 @@
       <img id="eggPrizeImg" src="" alt="彩蛋奖励">
     `;
     body.appendChild(imgPanel);
+
+    const noticePanel = document.createElement('div');
+    noticePanel.id = 'eggNoticePanel';
+    noticePanel.className = 'egg-dialog';
+    noticePanel.innerHTML = `
+      <button class="egg-close" id="eggNoticeClose">✕</button>
+      <div class="egg-notice-emoji">🎵</div>
+      <div class="egg-notice-text">接下来有音乐喵~<br>注意音量~</div>
+      <button id="eggNoticeStart" class="egg-notice-btn">开始吧</button>
+    `;
+    body.appendChild(noticePanel);
   }
 
   function bindEvents() {
@@ -55,12 +87,15 @@
     const mask = document.getElementById('eggMask');
     const panel = document.getElementById('eggPanel');
     const imgPanel = document.getElementById('eggImagePanel');
+    const noticePanel = document.getElementById('eggNoticePanel');
     const eggClose = document.getElementById('eggClose');
     const eggImgClose = document.getElementById('eggImgClose');
+    const eggNoticeClose = document.getElementById('eggNoticeClose');
     const eggInput = document.getElementById('eggInput');
     const eggSubmit = document.getElementById('eggSubmit');
     const eggError = document.getElementById('eggError');
     const prizeImg = document.getElementById('eggPrizeImg');
+    const noticeStartBtn = document.getElementById('eggNoticeStart');
 
     const imgState = { x: 0, y: 0, scale: 1 };
     const MIN_SCALE = 0.5;
@@ -73,7 +108,6 @@
       applyTransform();
     }
 
-    // 边界限制（拖拽及操作结束后使用）
     function constrainPosition() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -123,12 +157,19 @@
       mask.classList.remove('active');
       resetImage();
       clearGestureState();
+      stopMusic();
+      if (window.setEggLock) window.setEggLock(false);
+    }
+
+    function closeNoticePanel() {
+      noticePanel.classList.remove('open');
       if (window.setEggLock) window.setEggLock(false);
     }
 
     function closeAll() {
       closeImagePanel();
       panel.classList.remove('open');
+      noticePanel.classList.remove('open');
       eggInput.value = '';
       eggError.textContent = '';
       eggSubmit.disabled = false;
@@ -201,7 +242,6 @@
 
       const count = pointers.size;
 
-      // 双指缩放（锚点算法，稳定无漂移）
       if (count === 2 && pinchStart) {
         const pts = [...pointers.values()];
         const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
@@ -227,7 +267,6 @@
         return;
       }
 
-      // 单指拖拽（灵敏度提升）
       if (count === 1) {
         const [pt] = pointers.values();
 
@@ -280,7 +319,6 @@
       }
     }
 
-    // 滚轮缩放（桌面端，算法稳定）
     function onWheel(e) {
       if (!imgPanel.classList.contains('open')) return;
       if (e.target.closest('#eggImgClose')) return;
@@ -347,8 +385,21 @@
     eggClose.addEventListener('click', closeAll);
     eggClose.addEventListener('touchend', (e) => { e.preventDefault(); closeAll(); });
 
-    mask.addEventListener('click', closeAll);
-    mask.addEventListener('touchend', (e) => { e.preventDefault(); closeAll(); });
+    mask.addEventListener('click', () => {
+      if (noticePanel.classList.contains('open')) {
+        closeNoticePanel();
+      } else {
+        closeAll();
+      }
+    });
+    mask.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (noticePanel.classList.contains('open')) {
+        closeNoticePanel();
+      } else {
+        closeAll();
+      }
+    });
 
     function onImgClose(e) {
       e.stopPropagation();
@@ -357,6 +408,9 @@
     }
     eggImgClose.addEventListener('click', onImgClose);
     eggImgClose.addEventListener('touchend', onImgClose);
+
+    eggNoticeClose.addEventListener('click', closeNoticePanel);
+    eggNoticeClose.addEventListener('touchend', (e) => { e.preventDefault(); closeNoticePanel(); });
 
     // ---------- 兑换 ----------
     const handleSubmit = async () => {
@@ -375,38 +429,55 @@
         const supabaseUrl = 'https://zebyboiepollbowhidui.supabase.co';
         const imageUrl = `${supabaseUrl}/storage/v1/object/public/caise-eggs/${imagePath}`;
 
-        imgPanel.style.cssText = `
-          position: fixed; inset: 0; width: 100vw; height: 100vh;
-          background: rgba(0,0,0,0.95); z-index: 9999;
-          display: flex; align-items: center; justify-content: center;
-          transform: scale(1); margin: 0; padding: 0; border-radius: 0;
-        `;
-        resetImage();
-
-        try {
-          const response = await fetch(imageUrl);
-          if (!response.ok) {
-            const errText = await response.text();
-            console.error('❌ Supabase 错误详情：', response.status, errText);
-            throw new Error(`服务器返回 ${response.status}`);
-          }
-          const blob = await response.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          prizeImg.src = blobUrl;
-          prizeImg.onload = () => {
-            URL.revokeObjectURL(blobUrl);
-            resetImage();
-          };
-        } catch (fetchErr) {
-          console.error('图片 fetch 失败:', fetchErr);
-          eggError.textContent = '图片加载异常，请稍后重试';
-          eggSubmit.disabled = false;
-          return;
-        }
-
+        // 兑换成功，先显示提醒弹窗
         panel.classList.remove('open');
-        imgPanel.classList.add('open');
+        noticePanel.classList.add('open');
         eggSubmit.disabled = false;
+
+        const onStart = async () => {
+          noticeStartBtn.removeEventListener('click', onStart);
+          noticePanel.classList.remove('open');
+
+          imgPanel.style.cssText = `
+            position: fixed; inset: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.95); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            transform: scale(1); margin: 0; padding: 0; border-radius: 0;
+          `;
+          resetImage();
+
+          try {
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+              const errText = await response.text();
+              console.error('❌ Supabase 错误详情：', response.status, errText);
+              throw new Error(`服务器返回 ${response.status}`);
+            }
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            prizeImg.src = blobUrl;
+            prizeImg.onload = () => {
+              URL.revokeObjectURL(blobUrl);
+              resetImage();
+            };
+          } catch (fetchErr) {
+            console.error('图片 fetch 失败:', fetchErr);
+            eggError.textContent = '图片加载异常，请稍后重试';
+            mask.classList.remove('active');
+            if (window.setEggLock) window.setEggLock(false);
+            return;
+          }
+
+          imgPanel.classList.add('open');
+          ensureMusic();
+        };
+
+        noticeStartBtn.addEventListener('click', onStart);
+        noticeStartBtn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          onStart();
+        });
+
       } catch (err) {
         console.error('未知错误:', err);
         eggError.textContent = '出了点问题，请刷新';
